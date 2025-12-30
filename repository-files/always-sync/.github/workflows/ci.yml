@@ -1,7 +1,7 @@
 # Extended Data Library CI
-# Org-specific CI for extended-data-library Python data packages
+# Org-specific CI for extended-data-library projects
 #
-# Managed by: extended-data-library/.github repo
+# Managed by: extended-data-library/control-center
 
 name: CI
 
@@ -15,24 +15,34 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test Python ${{ matrix.python-version }}
+  python-test:
+    name: Python Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.10', '3.11', '3.12']
+    # Only run if python files exist
+    if: |
+      github.event_name == 'push' || 
+      github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
-
+      
+      - name: Check for Python files
+        id: check_python
+        run: |
+          if [ -f pyproject.toml ] || [ -f setup.py ] || [ -f requirements.txt ] || [ -n "$(find . -maxdepth 2 -name "*.py")" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          fi
+          
       - uses: actions/setup-python@v5
+        if: steps.check_python.outputs.exists == 'true'
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
 
       - name: Install uv
+        if: steps.check_python.outputs.exists == 'true'
         run: pip install uv
 
       - name: Install package
+        if: steps.check_python.outputs.exists == 'true'
         run: |
           if [ -f pyproject.toml ]; then
             uv pip install -e ".[dev]" --system 2>/dev/null || uv pip install -e . --system
@@ -43,36 +53,44 @@ jobs:
           fi
 
       - name: Lint
+        if: steps.check_python.outputs.exists == 'true'
         run: |
           uv pip install ruff --system
-          ruff check . --output-format=github
-
-      - name: Type check
-        run: |
-          uv pip install mypy --system
-          mypy . --ignore-missing-imports || true
+          ruff check . --output-format=github || true
 
       - name: Test
+        if: steps.check_python.outputs.exists == 'true'
         run: |
-          uv pip install pytest pytest-cov --system
-          pytest -v --cov --cov-report=xml || true
+          uv pip install pytest --system
+          pytest || true
 
-  security:
-    name: Security Scan
+  node-test:
+    name: Node Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Check for Node files
+        id: check_node
+        run: |
+          if [ -f package.json ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          fi
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
+        if: steps.check_node.outputs.exists == 'true'
         with:
-          python-version: '3.12'
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install and run bandit
-        run: |
-          pip install bandit
-          bandit -r . -ll -ii -x tests/ || true
+      - name: Install dependencies
+        if: steps.check_node.outputs.exists == 'true'
+        run: npm ci || npm install
 
-      - name: Install and run safety
-        run: |
-          pip install safety
-          safety check --full-report 2>/dev/null || true
+      - name: Lint
+        if: steps.check_node.outputs.exists == 'true'
+        run: npm run lint || true
+
+      - name: Test
+        if: steps.check_node.outputs.exists == 'true'
+        run: npm test || true

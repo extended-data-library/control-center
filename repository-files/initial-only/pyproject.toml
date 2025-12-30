@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ REPO_NAME }}"
+version = "0.1.0"
+description = "A data package in the Extended Data Library"
+authors = [
+    { name = "Extended Data Library", email = "info@extended-data-library.org" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy"
+]

@@ -22,9 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install vendor-connectors
+        run: pip install vendor-connectors
+
       - name: Sync files to org repos
         env:
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
           ORG: extended-data-library
         run: |
@@ -34,33 +43,46 @@ jobs:
           repos=$(gh repo list "$ORG" --limit 100 --json name,isArchived --jq '.[] | select(.isArchived == false) | .name')
           
           for repo in $repos; do
-            # Skip control-center itself
             [[ "$repo" == "control-center" ]] && continue
             [[ "$repo" == ".github" ]] && continue
             
             echo "📦 $ORG/$repo"
             
-            # Sync each file from repository-files/always-sync
+            # Sync Always-Sync files
             find repository-files/always-sync -type f | while read -r file; do
               rel_path="${file#repository-files/always-sync/}"
-              
               if [[ "$DRY_RUN" == "true" ]]; then
                 echo "  Would sync: $rel_path"
               else
-                content=$(base64 -w0 "$file")
-                sha=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.sha' 2>/dev/null || echo "")
-                
-                if [ -n "$sha" ]; then
-                  gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
-                    -f message="chore: sync from control-center" \
-                    -f content="$content" \
-                    -f sha="$sha" >/dev/null 2>&1 && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+                # Use vendor-connectors to sync
+                # We use - as content to read from stdin if possible, or just pass the cat output
+                vendor-connectors call github update_repository_file \
+                  --repository "$ORG/$repo" \
+                  --file_path "$rel_path" \
+                  --file_data "$(cat "$file")" \
+                  --msg "chore: sync $rel_path from control-center" && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+              fi
+            done
+
+            # Sync Initial-Only files
+            find repository-files/initial-only -type f | while read -r file; do
+              rel_path="${file#repository-files/initial-only/}"
+              
+              # Check if file exists
+              exists=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.sha' 2>/dev/null || echo "")
+              
+              if [ -z "$exists" ]; then
+                if [[ "$DRY_RUN" == "true" ]]; then
+                  echo "  Would bootstrap: $rel_path"
                 else
-                  gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
-                    -f message="chore: sync from control-center" \
-                    -f content="$content" >/dev/null 2>&1 && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+                  # Replace {{ REPO_NAME }} in content
+                  content=$(sed "s/{{ REPO_NAME }}/$repo/g" "$file")
+                  vendor-connectors call github update_repository_file \
+                    --repository "$ORG/$repo" \
+                    --file_path "$rel_path" \
+                    --file_data "$content" \
+                    --msg "chore: bootstrap $rel_path" && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
                 fi
               fi
             done
           done
-
