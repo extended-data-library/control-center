@@ -1,0 +1,144 @@
+name: 'Agentic Issue Triage'
+description: 'Triage a GitHub issue using an AI agent.'
+author: 'jbcom/agentic-control'
+branding:
+  icon: 'alert-circle'
+  color: 'orange'
+
+inputs:
+  github_token:
+    description: 'The GitHub token to use for authentication.'
+    required: true
+  issue_number:
+    description: 'The number of the issue to triage.'
+    required: true
+  model:
+    description: 'The Ollama model to use for the triage.'
+    required: false
+    default: 'llama3'
+  api_key:
+    description: 'The API key for the model.'
+    required: false
+  jules_api_key:
+    description: 'Jules API key'
+    required: false
+  cursor_api_key:
+    description: 'Cursor API key'
+    required: false
+  comment_body:
+    description: 'Comment body'
+    required: false
+  repository:
+    description: 'Repository'
+    required: false
+  default_branch:
+    description: 'Default branch'
+    required: false
+
+outputs:
+  triage_summary:
+    description: 'A summary of the triage.'
+  labels:
+    description: 'The labels suggested by the agent.'
+  assignee:
+    description: 'The assignee suggested by the agent.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install vendor-connectors
+      shell: bash
+      run: pip install vendor-connectors
+
+    - name: Run issue triage
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GOOGLE_JULES_API_KEY: ${{ inputs.jules_api_key }}
+        CURSOR_API_KEY: ${{ inputs.cursor_api_key }}
+        COMMENT_BODY: ${{ inputs.comment_body }}
+        ISSUE_NUMBER: ${{ inputs.issue_number }}
+        REPOSITORY: ${{ inputs.repository }}
+        DEFAULT_BRANCH: ${{ inputs.default_branch }}
+      run: |
+        # If /jules command is present, delegate to Google Jules
+        if [[ "$COMMENT_BODY" == *"/jules"* ]]; then
+          echo "🤖 Delegating to Google Jules..."
+          
+          if [[ -z "$GOOGLE_JULES_API_KEY" ]]; then
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "⚠️ GOOGLE_JULES_API_KEY not configured."
+            exit 1
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "🤖 Creating Jules session..."
+          
+          TASK=$(echo "$COMMENT_BODY" | sed 's|/jules[[:space:]]*||' | head -c 1000)
+          [ -z "$TASK" ] && TASK="Fix issue #$ISSUE_NUMBER"
+
+          # Use vendor-connectors CLI
+          RESULT=$(vendor-connectors call jules create_session \
+            --repo "$REPOSITORY" \
+            --prompt "Fix issue #$ISSUE_NUMBER: $TASK" \
+            --branch "${DEFAULT_BRANCH:-main}" 2>&1) || RESULT=""
+
+          if [ -n "$RESULT" ]; then
+            SESSION_ID=$(echo "$RESULT" | jq -r '.name // .id // empty' 2>/dev/null | sed 's|sessions/||')
+            if [ -n "$SESSION_ID" ]; then
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "## 🤖 Jules Session Created
+
+        ➡️ **[Monitor Session](https://jules.google.com/session/$SESSION_ID)**
+
+        Jules will analyze the issue and create a PR."
+              exit 0
+            fi
+          fi
+          
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "❌ Failed to create Jules session."
+          exit 1
+        fi
+
+        # If /cursor command is present, delegate to Cursor
+        if [[ "$COMMENT_BODY" == *"/cursor"* ]]; then
+          echo "🤖 Delegating to Cursor Cloud Agent..."
+          
+          if [[ -z "$CURSOR_API_KEY" ]]; then
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "⚠️ CURSOR_API_KEY not configured."
+            exit 1
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "🤖 Spawning Cursor agent..."
+          
+          TASK=$(echo "$COMMENT_BODY" | sed 's|/cursor[[:space:]]*||' | head -c 1000)
+          [ -z "$TASK" ] && TASK="Fix issue #$ISSUE_NUMBER"
+
+          # Use vendor-connectors CLI
+          RESULT=$(vendor-connectors call cursor create_agent \
+            --repository "$REPOSITORY" \
+            --prompt "Fix issue #$ISSUE_NUMBER: $TASK" \
+            --ref "${DEFAULT_BRANCH:-main}" 2>&1) || RESULT=""
+
+          if [ -n "$RESULT" ]; then
+            AGENT_ID=$(echo "$RESULT" | jq -r '.id // empty' 2>/dev/null)
+            if [ -n "$AGENT_ID" ]; then
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "## 🤖 Cursor Agent Spawned
+
+        Agent ID: \`$AGENT_ID\`
+
+        Cursor will analyze the issue and create a PR."
+              exit 0
+            fi
+          fi
+          
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "❌ Failed to spawn Cursor agent."
+          exit 1
+        fi
+
+        # Standard triage - acknowledge
+        echo "Standard triage - acknowledging issue"
+        gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" --body "🤖 Issue received and queued for triage."
