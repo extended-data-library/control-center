@@ -1,0 +1,136 @@
+name: 'Agentic PR Review'
+description: 'AI-powered code review and feedback for Pull Requests'
+author: 'Jon Bogaty'
+branding:
+  icon: 'search'
+  color: 'blue'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  model:
+    description: 'AI model to use for review'
+    required: false
+  base:
+    description: 'Base ref for diff'
+    required: false
+    default: 'main'
+  head:
+    description: 'Head ref for diff'
+    required: false
+    default: 'HEAD'
+  ollama_api_key:
+    description: 'Ollama API key (deprecated, use GH_TOKEN)'
+    required: false
+  ollama_host:
+    description: 'Ollama host (deprecated)'
+    required: false
+  ollama_model:
+    description: 'Ollama model (deprecated, use model)'
+    required: false
+  jules_api_key:
+    description: 'Google Jules API key'
+    required: false
+
+outputs:
+  suggestion_count:
+    description: 'Number of suggestions found'
+    value: ${{ steps.review.outputs.suggestion_count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install vendor-connectors
+      shell: bash
+      run: pip install vendor-connectors
+
+    - name: Run PR Review
+      id: review
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_HEAD: ${{ inputs.head }}
+        OLLAMA_API_KEY: ${{ inputs.ollama_api_key }}
+        OLLAMA_HOST: ${{ inputs.ollama_host }}
+        GOOGLE_JULES_API_KEY: ${{ inputs.jules_api_key }}
+      run: |
+        set +e
+        
+        # Fetch base branch
+        git fetch origin "${INPUT_BASE:-main}" 2>/dev/null || true
+        git branch "${INPUT_BASE:-main}" FETCH_HEAD 2>/dev/null || true
+        
+        # Get the diff
+        git diff "${INPUT_BASE:-main}"...HEAD > /tmp/pr_diff.txt 2>/dev/null || \
+          git diff HEAD~1 > /tmp/pr_diff.txt 2>/dev/null || \
+          echo "No diff available" > /tmp/pr_diff.txt
+        
+        # Truncate to 50KB
+        head -c 50000 /tmp/pr_diff.txt > /tmp/pr_diff_preview.txt
+        DIFF_PREVIEW=$(cat /tmp/pr_diff_preview.txt)
+        
+        # Get PR number
+        PR_NUM=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH" 2>/dev/null)
+        
+        # Build review prompt
+        PROMPT="Review this code diff. Provide:
+        1. Brief summary of changes
+        2. Issues found (bugs, security, performance)
+        3. Improvement suggestions
+        
+        Use severity: 🔴 critical, 🟠 high, 🟡 medium, ⚪ low
+        
+        DIFF:
+        $DIFF_PREVIEW"
+        
+        # Try Ollama via direct API (vendor-connectors chat coming soon)
+        if [ -n "$OLLAMA_HOST" ] && [ -n "$OLLAMA_API_KEY" ]; then
+          echo "🤖 Reviewing with Ollama..."
+          
+          RESPONSE=$(curl -sf --max-time 120 \
+            -H "Authorization: Bearer $OLLAMA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg model "${INPUT_MODEL:-glm-4.6:cloud}" \
+              --arg prompt "$PROMPT" \
+              '{
+                model: $model,
+                messages: [
+                  { role: "system", content: "Expert code reviewer. Be concise." },
+                  { role: "user", content: $prompt }
+                ],
+                stream: false
+              }')" \
+            "$OLLAMA_HOST/api/chat" 2>/dev/null) || RESPONSE=""
+          
+          if [ -n "$RESPONSE" ]; then
+            REVIEW=$(echo "$RESPONSE" | jq -r '.message.content // empty')
+            if [ -n "$REVIEW" ]; then
+              SUGGESTION_COUNT=$(echo "$REVIEW" | grep -c -E '🔴|🟠|🟡|⚪' || echo "0")
+              echo "suggestion_count=$SUGGESTION_COUNT" >> $GITHUB_OUTPUT
+              
+              if [ -n "$PR_NUM" ] && [ "$PR_NUM" != "null" ]; then
+                gh pr comment "$PR_NUM" --body "## 🤖 AI Code Review
+
+        $REVIEW
+
+        ---
+        <sub>Reviewed using ${INPUT_MODEL:-glm-4.6:cloud}</sub>" 2>/dev/null || true
+              fi
+              echo "$REVIEW"
+              exit 0
+            fi
+          fi
+        fi
+        
+        echo "⚠️ No AI review available"
+        echo "suggestion_count=0" >> $GITHUB_OUTPUT
