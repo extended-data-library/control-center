@@ -4,7 +4,7 @@
 # for unified AI-powered automation across all organization repositories.
 #
 # Features:
-# - Automatic PR review via AI (Cursor/Jules)
+# - Automatic PR review via AI (Ollama → Claude escalation)
 # - /jules and /cursor command delegation
 # - CI failure auto-fix
 #
@@ -13,13 +13,19 @@
 name: Ecosystem Connector
 
 on:
+  # PR events - trigger AI review
   pull_request:
     types: [opened, synchronize, ready_for_review]
+
+  # Issue/PR comments - handle delegation commands
   issue_comment:
     types: [created]
+
+  # CI failures - trigger auto-fix
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["CI", "Build", "Test", "Lint"]
     types: [completed]
+    branches-ignore: [main, master]
 
 permissions:
   contents: write
@@ -30,22 +36,23 @@ permissions:
 jobs:
   # ==========================================================================
   # AI PR REVIEW
+  # Calls control-center's ecosystem-orchestrator for tiered AI review
   # ==========================================================================
   review:
     name: AI Review
     if: |
       github.event_name == 'pull_request' && 
       github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: PR Review
-        uses: extended-data-library/control-center/repository-files/always-sync/.github/actions/agentic-pr-review@main
-        with:
-          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
-          pr_number: ${{ github.event.pull_request.number }}
-          cursor_api_key: ${{ secrets.CURSOR_API_KEY }}
-          jules_api_key: ${{ secrets.GOOGLE_JULES_API_KEY }}
+    uses: extended-data-library/control-center/.github/workflows/ecosystem-orchestrator.yml@main
+    with:
+      action: review
+      pr_number: ${{ github.event.pull_request.number }}
+      repository: ${{ github.repository }}
+    secrets:
+      CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
 
   # ==========================================================================
   # DELEGATION: /jules and /cursor commands
@@ -56,15 +63,18 @@ jobs:
       github.event_name == 'issue_comment' &&
       (contains(github.event.comment.body, '/jules') || 
        contains(github.event.comment.body, '/cursor'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Command Delegation
-        uses: extended-data-library/control-center/repository-files/always-sync/.github/actions/agentic-issue-triage@main
-        with:
-          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
-          cursor_api_key: ${{ secrets.CURSOR_API_KEY }}
-          jules_api_key: ${{ secrets.GOOGLE_JULES_API_KEY }}
+    uses: extended-data-library/control-center/.github/workflows/ecosystem-orchestrator.yml@main
+    with:
+      action: delegate
+      comment_body: ${{ github.event.comment.body }}
+      issue_number: ${{ github.event.issue.number || github.event.pull_request.number }}
+      repository: ${{ github.repository }}
+      default_branch: ${{ github.event.repository.default_branch }}
+    secrets:
+      CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
 
   # ==========================================================================
   # CI FAILURE AUTO-FIX
@@ -74,15 +84,12 @@ jobs:
     if: |
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fix CI
-        uses: extended-data-library/control-center/repository-files/always-sync/.github/actions/agentic-ci-resolution@main
-        with:
-          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
-          workflow_run_id: ${{ github.event.workflow_run.id }}
-          repository: ${{ github.repository }}
-          branch: ${{ github.event.workflow_run.head_branch }}
-          cursor_api_key: ${{ secrets.CURSOR_API_KEY }}
-          jules_api_key: ${{ secrets.GOOGLE_JULES_API_KEY }}
+    uses: extended-data-library/control-center/.github/workflows/ecosystem-fixer.yml@main
+    with:
+      run_id: ${{ github.event.workflow_run.id }}
+      repository: ${{ github.repository }}
+      branch: ${{ github.event.workflow_run.head_branch }}
+    secrets:
+      CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
