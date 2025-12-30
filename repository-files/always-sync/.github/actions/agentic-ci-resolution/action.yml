@@ -1,0 +1,103 @@
+name: 'Agentic CI Resolution'
+description: 'Automatically analyze and resolve CI failures and PR feedback'
+author: 'Jon Bogaty'
+branding:
+  icon: 'zap'
+  color: 'green'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  pr_number:
+    description: 'PR number to resolve (defaults to current PR)'
+    required: false
+  repo:
+    description: 'Repository in owner/repo format'
+    required: false
+  iterations:
+    description: 'Maximum number of resolution iterations'
+    required: false
+    default: '5'
+  jules_api_key:
+    description: 'Jules API key'
+    required: false
+  cursor_api_key:
+    description: 'Cursor API key'
+    required: false
+  workflow_run_id:
+    description: 'Workflow run ID'
+    required: false
+  branch:
+    description: 'Branch name'
+    required: false
+  repository:
+    description: 'Repository name'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install vendor-connectors
+      shell: bash
+      run: pip install vendor-connectors
+
+    - name: Run CI Resolution
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GOOGLE_JULES_API_KEY: ${{ inputs.jules_api_key }}
+        CURSOR_API_KEY: ${{ inputs.cursor_api_key }}
+        INPUT_REPO: ${{ inputs.repository }}
+        INPUT_REPO_ALT: ${{ inputs.repo }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_RUN_ID: ${{ inputs.workflow_run_id }}
+      run: |
+        REPO="${INPUT_REPO:-${INPUT_REPO_ALT:-$GITHUB_REPOSITORY}}"
+        BRANCH="$INPUT_BRANCH"
+        RUN_ID="$INPUT_RUN_ID"
+        
+        echo "🔧 Resolving CI failure for $REPO on branch $BRANCH"
+        
+        # Get failure logs to temp file
+        gh run view "$RUN_ID" --repo "$REPO" --log-failed 2>/dev/null | head -500 > /tmp/failure.log || echo "Could not fetch logs" > /tmp/failure.log
+        
+        # Build task prompt
+        cat > /tmp/task.txt << 'TASK_EOF'
+        Fix the CI failure. Analyze the error log below, identify the root cause, fix the code, and commit the fix.
+        TASK_EOF
+        echo "" >> /tmp/task.txt
+        echo "Branch: $BRANCH" >> /tmp/task.txt
+        echo "" >> /tmp/task.txt
+        echo "Error log:" >> /tmp/task.txt
+        cat /tmp/failure.log >> /tmp/task.txt
+        
+        TASK=$(cat /tmp/task.txt)
+        
+        # Try Cursor agent first
+        if [ -n "$CURSOR_API_KEY" ]; then
+          echo "🤖 Spawning Cursor agent..."
+          if vendor-connectors call cursor create_agent --repository "$REPO" --prompt "$TASK" --ref "$BRANCH" 2>/dev/null; then
+            echo "✅ Cursor agent spawned"
+            exit 0
+          fi
+          echo "Cursor failed, trying Jules..."
+        fi
+        
+        # Fallback to Jules
+        if [ -n "$GOOGLE_JULES_API_KEY" ]; then
+          echo "🤖 Creating Jules session..."
+          if vendor-connectors call jules create_session --repo "$REPO" --prompt "$TASK" --branch "$BRANCH" 2>/dev/null; then
+            echo "✅ Jules session created"
+            exit 0
+          fi
+        fi
+        
+        echo "⚠️ No AI agents available or both failed"
+        exit 1
