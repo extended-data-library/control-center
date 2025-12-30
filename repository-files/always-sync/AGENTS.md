@@ -20,6 +20,7 @@ gh pr list
 - **Connectors**: All connectors should extend the base classes provided in `vendor-connectors`.
 - **Inputs**: Use the `inputs` library for type-safe configuration.
 - **Logging**: Use the `logging` library for standardized output.
+- **Automation**: Managed by the [Extended Data Control Center](https://github.com/extended-data-library/control-center).
 
 ## AI Orchestration
 - **Ecosystem Connector**: Every repository includes an `.github/workflows/ecosystem-connector.yml` that delegates tasks to AI agents.
