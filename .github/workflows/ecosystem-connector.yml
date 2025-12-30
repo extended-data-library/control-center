@@ -1,0 +1,106 @@
+name: Ecosystem Connector
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches-ignore: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    name: AI Review
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install vendor-connectors
+      - name: Review
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+        run: |
+          # Use vendor-connectors for review orchestration
+          python -c "
+          from vendor_connectors import GithubConnector
+          gh = GithubConnector()
+          # Post review request
+          "
+
+  delegate:
+    name: Delegate Command
+    if: |
+      github.event_name == 'issue_comment' &&
+      (contains(github.event.comment.body, '/jules') ||
+       contains(github.event.comment.body, '/cursor'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install vendor-connectors
+      - name: Delegate
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          ISSUE="${{ github.event.issue.number }}"
+          REPO="${{ github.repository }}"
+          
+          if [[ "$COMMENT" == *"/jules"* ]]; then
+            PROMPT=$(echo "$COMMENT" | sed "s|/jules ||")
+            curl -sf -X POST "https://jules.googleapis.com/v1alpha/sessions" \
+              -H "X-Goog-Api-Key: $GOOGLE_JULES_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"prompt\":\"$PROMPT\",\"sourceContext\":{\"source\":\"sources/github/${REPO}\"},\"automationMode\":\"AUTO_CREATE_PR\"}"
+            gh issue comment "$ISSUE" --body "🤖 Jules session started"
+          fi
+          
+          if [[ "$COMMENT" == *"/cursor"* ]]; then
+            PROMPT=$(echo "$COMMENT" | sed "s|/cursor ||")
+            curl -sf -X POST "https://api.cursor.com/v0/agents" \
+              -H "Authorization: Bearer $CURSOR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"prompt\":{\"text\":\"$PROMPT\"},\"source\":{\"repository\":\"$REPO\"}}"
+            gh issue comment "$ISSUE" --body "🤖 Cursor agent spawned"
+          fi
+
+  fix-ci:
+    name: Fix CI
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install vendor-connectors
+      - name: Spawn fixer
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          REPO="${{ github.repository }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          
+          LOGS=$(gh run view "$RUN_ID" --log-failed 2>/dev/null | head -200 || echo "Failed to get logs")
+          
+          curl -sf -X POST "https://api.cursor.com/v0/agents" \
+            -H "Authorization: Bearer $CURSOR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"prompt\":{\"text\":\"Fix CI failure on branch $BRANCH. Logs: $LOGS\"},\"source\":{\"repository\":\"$REPO\",\"ref\":\"$BRANCH\"}}"
+
