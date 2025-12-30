@@ -34,33 +34,59 @@ jobs:
           repos=$(gh repo list "$ORG" --limit 100 --json name,isArchived --jq '.[] | select(.isArchived == false) | .name')
           
           for repo in $repos; do
-            # Skip control-center itself
+            # Skip control-center itself and .github repo which usually has different rules
             [[ "$repo" == "control-center" ]] && continue
             [[ "$repo" == ".github" ]] && continue
             
             echo "📦 $ORG/$repo"
             
-            # Sync each file from repository-files/always-sync
+            # 1. Sync 'always-sync' files
             find repository-files/always-sync -type f | while read -r file; do
               rel_path="${file#repository-files/always-sync/}"
               
               if [[ "$DRY_RUN" == "true" ]]; then
-                echo "  Would sync: $rel_path"
+                echo "  [DRY] Would sync (always): $rel_path"
               else
                 content=$(base64 -w0 "$file")
                 sha=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.sha' 2>/dev/null || echo "")
                 
                 if [ -n "$sha" ]; then
+                  # Check if content is actually different to avoid unnecessary commits
+                  existing_content=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.content' | tr -d '\n')
+                  if [ "$existing_content" == "$content" ]; then
+                    echo "  ✅ $rel_path (unchanged)"
+                    continue
+                  fi
+
                   gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
-                    -f message="chore: sync from control-center" \
+                    -f message="chore: sync $rel_path from control-center" \
                     -f content="$content" \
-                    -f sha="$sha" >/dev/null 2>&1 && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+                    -f sha="$sha" >/dev/null && echo "  ✅ $rel_path (updated)" || echo "  ❌ $rel_path"
                 else
                   gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
-                    -f message="chore: sync from control-center" \
-                    -f content="$content" >/dev/null 2>&1 && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+                    -f message="chore: sync $rel_path from control-center" \
+                    -f content="$content" >/dev/null && echo "  ✅ $rel_path (created)" || echo "  ❌ $rel_path"
+                fi
+              fi
+            done
+
+            # 2. Sync 'initial-only' files (only if they don't exist)
+            find repository-files/initial-only -type f | while read -r file; do
+              rel_path="${file#repository-files/initial-only/}"
+              
+              if [[ "$DRY_RUN" == "true" ]]; then
+                echo "  [DRY] Would sync (initial): $rel_path"
+              else
+                sha=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.sha' 2>/dev/null || echo "")
+                
+                if [ -z "$sha" ]; then
+                  content=$(base64 -w0 "$file")
+                  gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
+                    -f message="chore: initialize $rel_path from control-center" \
+                    -f content="$content" >/dev/null && echo "  🆕 $rel_path (initialized)" || echo "  ❌ $rel_path"
+                else
+                  echo "  ⏭️ $rel_path (exists, skipping initial-only)"
                 fi
               fi
             done
           done
-

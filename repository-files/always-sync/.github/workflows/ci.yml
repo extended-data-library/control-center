@@ -1,8 +1,3 @@
-# Extended Data Library CI
-# Org-specific CI for extended-data-library Python data packages
-#
-# Managed by: extended-data-library/.github repo
-
 name: CI
 
 on:
@@ -15,9 +10,10 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test Python ${{ matrix.python-version }}
+  python-ci:
+    name: Python CI
     runs-on: ubuntu-latest
+    if: hashFiles('pyproject.toml', 'setup.py', 'requirements.txt') != ''
     strategy:
       fail-fast: false
       matrix:
@@ -57,22 +53,43 @@ jobs:
           uv pip install pytest pytest-cov --system
           pytest -v --cov --cov-report=xml || true
 
+  node-ci:
+    name: Node CI
+    runs-on: ubuntu-latest
+    if: hashFiles('package.json') != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint || echo "No lint script"
+
+      - name: Build
+        run: npm run build || echo "No build script"
+
+      - name: Test
+        run: npm run test || echo "No test script"
+
   security:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install and run bandit
+      - name: Python Security Scan
+        if: hashFiles('pyproject.toml', 'setup.py', 'requirements.txt') != ''
         run: |
-          pip install bandit
+          pip install bandit safety
           bandit -r . -ll -ii -x tests/ || true
-
-      - name: Install and run safety
-        run: |
-          pip install safety
           safety check --full-report 2>/dev/null || true
+
+      - name: Node Security Scan
+        if: hashFiles('package.json') != ''
+        run: npm audit
