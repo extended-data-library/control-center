@@ -213,7 +213,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.CI_GITHUB_TOKEN }}
-          direct_prompt: |
+          prompt: |
             Review PR #${{ env.PR_NUMBER }} in ${{ env.TARGET_REPO }}.
             Focus on security, logic, performance, and error handling.
             Approve if no critical issues are found.
@@ -318,25 +318,18 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.CI_GITHUB_TOKEN }}
           allowed_tools: "Edit,Write,Read,Glob,Grep,LS,Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr view),Bash(gh pr create),Bash(gh issue view),Bash(node:*),Bash(npm:*)"
-          direct_prompt: |
+          prompt: |
             Issue in ${{ env.TARGET_REPO }}: #${{ env.ISSUE_NUMBER }}
-
             Title: ${{ env.ISSUE_TITLE }}
-
             Description:
             ${{ env.ISSUE_BODY }}
-
             ---
-
             Triggering comment: ${{ env.COMMENT_BODY }}
-
             ---
-
             Analyze the issue and either:
             1. Answer the question if it's a question
             2. Implement a fix if it's a bug
             3. Implement the feature if it's a feature request
-
             Create a PR with your changes.
 
   # ====================================================================
