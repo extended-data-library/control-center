@@ -1,0 +1,66 @@
+name: Sync Files
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'repository-files/**'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no changes)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync to Org Repos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync files to org repos
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ORG: extended-data-library
+        run: |
+          echo "Syncing repository-files to all $ORG repos..."
+          
+          # Get list of repos
+          repos=$(gh repo list "$ORG" --limit 100 --json name,isArchived --jq '.[] | select(.isArchived == false) | .name')
+          
+          for repo in $repos; do
+            # Skip control-center itself
+            [[ "$repo" == "control-center" ]] && continue
+            [[ "$repo" == ".github" ]] && continue
+            
+            echo "📦 $ORG/$repo"
+            
+            # Sync each file from repository-files/always-sync
+            find repository-files/always-sync -type f | while read -r file; do
+              rel_path="${file#repository-files/always-sync/}"
+              
+              if [[ "$DRY_RUN" == "true" ]]; then
+                echo "  Would sync: $rel_path"
+              else
+                content=$(base64 -w0 "$file")
+                sha=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.sha' 2>/dev/null || echo "")
+                
+                if [ -n "$sha" ]; then
+                  gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
+                    -f message="chore: sync from control-center" \
+                    -f content="$content" \
+                    -f sha="$sha" >/dev/null 2>&1 && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+                else
+                  gh api -X PUT "repos/$ORG/$repo/contents/$rel_path" \
+                    -f message="chore: sync from control-center" \
+                    -f content="$content" >/dev/null 2>&1 && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
+                fi
+              fi
+            done
+          done
+
