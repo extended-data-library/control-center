@@ -23,7 +23,7 @@ gh pr list
 
 ## AI Orchestration
 - **Ecosystem Connector**: Every repository includes an `.github/workflows/ecosystem-connector.yml` that delegates tasks to AI agents.
-- **Cursor Rules**: Check `.cursor/rules/` for repo-specific AI instructions.
+- **Cursor Rules**: Check `.cursor/rules/` for repo-specific AI instructions. Standardized rules cover PR workflows and fundamentals.
 - **Memory Bank**: Use the `memory-bank/` directory to track session context and progress.
 
 ## Common Commands

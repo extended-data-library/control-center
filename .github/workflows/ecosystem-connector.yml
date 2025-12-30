@@ -1,106 +1,95 @@
+# Ecosystem Connector Workflow
+# 
+# This workflow connects this repository back to extended-data-library/control-center
+# for unified AI-powered automation across all organization repositories.
+#
+# Features:
+# - Automatic PR review via AI (Ollama → Claude escalation)
+# - /jules and /cursor command delegation
+# - CI failure auto-fix
+#
+# Managed by: extended-data-library/control-center
+
 name: Ecosystem Connector
 
 on:
+  # PR events - trigger AI review
   pull_request:
     types: [opened, synchronize, ready_for_review]
+
+  # Issue/PR comments - handle delegation commands
   issue_comment:
     types: [created]
+
+  # CI failures - trigger auto-fix
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["CI", "Build", "Test", "Lint"]
     types: [completed]
-    branches-ignore: [main]
+    branches-ignore: [main, master]
 
 permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: read
 
 jobs:
+  # ==========================================================================
+  # AI PR REVIEW
+  # Calls control-center's ecosystem-orchestrator for tiered AI review
+  # ==========================================================================
   review:
     name: AI Review
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install vendor-connectors
-      - name: Review
-        env:
-          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
-        run: |
-          # Use vendor-connectors for review orchestration
-          python -c "
-          from vendor_connectors import GithubConnector
-          gh = GithubConnector()
-          # Post review request
-          "
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.pull_request.draft == false
+    uses: extended-data-library/control-center/.github/workflows/ecosystem-orchestrator.yml@main
+    with:
+      action: review
+      pr_number: ${{ github.event.pull_request.number }}
+      repository: ${{ github.repository }}
+    secrets:
+      CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
 
+  # ==========================================================================
+  # DELEGATION: /jules and /cursor commands
+  # ==========================================================================
   delegate:
     name: Delegate Command
     if: |
       github.event_name == 'issue_comment' &&
-      (contains(github.event.comment.body, '/jules') ||
+      (contains(github.event.comment.body, '/jules') || 
        contains(github.event.comment.body, '/cursor'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install vendor-connectors
-      - name: Delegate
-        env:
-          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
-        run: |
-          COMMENT="${{ github.event.comment.body }}"
-          ISSUE="${{ github.event.issue.number }}"
-          REPO="${{ github.repository }}"
-          
-          if [[ "$COMMENT" == *"/jules"* ]]; then
-            PROMPT=$(echo "$COMMENT" | sed "s|/jules ||")
-            curl -sf -X POST "https://jules.googleapis.com/v1alpha/sessions" \
-              -H "X-Goog-Api-Key: $GOOGLE_JULES_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "{\"prompt\":\"$PROMPT\",\"sourceContext\":{\"source\":\"sources/github/${REPO}\"},\"automationMode\":\"AUTO_CREATE_PR\"}"
-            gh issue comment "$ISSUE" --body "🤖 Jules session started"
-          fi
-          
-          if [[ "$COMMENT" == *"/cursor"* ]]; then
-            PROMPT=$(echo "$COMMENT" | sed "s|/cursor ||")
-            curl -sf -X POST "https://api.cursor.com/v0/agents" \
-              -H "Authorization: Bearer $CURSOR_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "{\"prompt\":{\"text\":\"$PROMPT\"},\"source\":{\"repository\":\"$REPO\"}}"
-            gh issue comment "$ISSUE" --body "🤖 Cursor agent spawned"
-          fi
+    uses: extended-data-library/control-center/.github/workflows/ecosystem-orchestrator.yml@main
+    with:
+      action: delegate
+      comment_body: ${{ github.event.comment.body }}
+      issue_number: ${{ github.event.issue.number || github.event.pull_request.number }}
+      repository: ${{ github.repository }}
+      default_branch: ${{ github.event.repository.default_branch }}
+    secrets:
+      CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
 
+  # ==========================================================================
+  # CI FAILURE AUTO-FIX
+  # ==========================================================================
   fix-ci:
-    name: Fix CI
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install vendor-connectors
-      - name: Spawn fixer
-        env:
-          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-        run: |
-          REPO="${{ github.repository }}"
-          BRANCH="${{ github.event.workflow_run.head_branch }}"
-          RUN_ID="${{ github.event.workflow_run.id }}"
-          
-          LOGS=$(gh run view "$RUN_ID" --log-failed 2>/dev/null | head -200 || echo "Failed to get logs")
-          
-          curl -sf -X POST "https://api.cursor.com/v0/agents" \
-            -H "Authorization: Bearer $CURSOR_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"prompt\":{\"text\":\"Fix CI failure on branch $BRANCH. Logs: $LOGS\"},\"source\":{\"repository\":\"$REPO\",\"ref\":\"$BRANCH\"}}"
-
+    name: Auto-fix CI
+    if: |
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure'
+    uses: extended-data-library/control-center/.github/workflows/ecosystem-fixer.yml@main
+    with:
+      run_id: ${{ github.event.workflow_run.id }}
+      repository: ${{ github.repository }}
+      branch: ${{ github.event.workflow_run.head_branch }}
+    secrets:
+      CI_GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+      GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
