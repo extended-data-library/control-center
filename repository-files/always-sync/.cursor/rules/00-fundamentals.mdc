@@ -1,0 +1,36 @@
+---
+description: Fundamental rules for all Extended Data Library repos
+globs: "**/*"
+alwaysApply: true
+---
+
+# Fundamentals
+
+## Before Acting
+
+1. **Read before modifying** - Always read the file/code before editing.
+2. **Run builds after changes** - Verify your changes compile/lint.
+3. **Check git status** - Know what you're committing.
+
+## Making Changes
+
+1. **One concern per commit** - Keep commits focused.
+2. **Run linters/tests locally** before pushing.
+3. **Don't consolidate code** without verifying the build.
+
+## Authentication
+
+```bash
+# Extended Data Library repos
+gh <command>
+```
+
+## Session Management
+
+```bash
+# Start of session
+cat memory-bank/activeContext.md 2>/dev/null || echo "No memory bank"
+
+# End of session - update context
+# (Use memory-bank to track progress)
+```

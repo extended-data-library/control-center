@@ -1,0 +1,135 @@
+{
+  "$schema": "./schemas/repo-config.schema.json",
+  "version": "1.0.0",
+  "description": "Extended Data Library repository configuration",
+  "defaults": {
+    "merge_settings": {
+      "allow_squash_merge": true,
+      "allow_merge_commit": false,
+      "allow_rebase_merge": false,
+      "delete_branch_on_merge": true
+    },
+    "features": {
+      "has_issues": true,
+      "has_projects": true,
+      "has_wiki": false
+    },
+    "security": {
+      "vulnerability_alerts": true
+    }
+  },
+  "rulesets": {
+    "main": {
+      "name": "Main",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "~DEFAULT_BRANCH"
+          ],
+          "exclude": []
+        }
+      },
+      "bypass_actors": [
+        {
+          "actor_id": 5,
+          "actor_type": "RepositoryRole",
+          "bypass_mode": "always"
+        }
+      ],
+      "rules": [
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "type": "required_linear_history"
+        },
+        {
+          "type": "pull_request",
+          "parameters": {
+            "allowed_merge_methods": [
+              "squash"
+            ],
+            "dismiss_stale_reviews_on_push": false,
+            "require_code_owner_review": false,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 0,
+            "required_review_thread_resolution": true,
+            "required_reviewers": []
+          }
+        }
+      ]
+    },
+    "prs": {
+      "name": "PRs",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": [],
+          "exclude": [
+            "refs/heads/main"
+          ]
+        }
+      },
+      "bypass_actors": [],
+      "rules": [
+        {
+          "type": "code_quality",
+          "parameters": {
+            "severity": "errors"
+          }
+        }
+      ]
+    }
+  },
+  "ecosystems": {
+    "python": {
+      "organization": "extended-data-library",
+      "files": {
+        "always": ["always-sync"],
+        "initial": ["initial-only"]
+      },
+      "repos": [
+        "core",
+        "vendor-connectors",
+        "logging"
+      ]
+    },
+    "nodejs": {
+      "organization": "extended-data-library",
+      "files": {
+        "always": ["always-sync"],
+        "initial": ["initial-only"]
+      },
+      "repos": [
+        "inputs"
+      ]
+    },
+    "docs": {
+      "organization": "extended-data-library",
+      "files": {
+        "always": ["always-sync"],
+        "initial": ["initial-only"]
+      },
+      "repos": [
+        "extended-data-library.github.io"
+      ]
+    },
+    "control": {
+      "organization": "extended-data-library",
+      "repos": [
+        "control-center",
+        ".github"
+      ]
+    }
+  },
+  "repository_descriptions": {
+    "core": "Extended Data Types",
+    "vendor-connectors": "Enterprise connector library",
+    "logging": "LifecycleLogging library",
+    "inputs": "Dynamic configuration loading",
+    "extended-data-library.github.io": "Organization documentation"
+  }
+}

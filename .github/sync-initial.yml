@@ -1,0 +1,37 @@
+# Initial-Only Sync Configuration
+# These files are synced ONLY IF THEY DON'T EXIST in the target repository
+#
+# Managed by extended-data-library/control-center
+
+group:
+  # ============================================================================
+  # Initial-only files - only create if missing
+  # ============================================================================
+  - files:
+      # Memory bank templates
+      - source: repository-files/initial-only/memory-bank/
+        dest: memory-bank/
+        replace: false
+      # Profile README (for .github repo specifically, but safe elsewhere)
+      - source: repository-files/initial-only/profile/README.md
+        dest: profile/README.md
+        replace: false
+      # Basic project templates
+      - source: repository-files/initial-only/pyproject.toml
+        dest: pyproject.toml
+        replace: false
+      - source: repository-files/initial-only/package.json
+        dest: package.json
+        replace: false
+      - source: repository-files/initial-only/LICENSE
+        dest: LICENSE
+        replace: false
+      - source: repository-files/initial-only/README.md
+        dest: README.md
+        replace: false
+    repos: |
+      extended-data-library/core
+      extended-data-library/vendor-connectors
+      extended-data-library/inputs
+      extended-data-library/logging
+      extended-data-library/extended-data-library.github.io
