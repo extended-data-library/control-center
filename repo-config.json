@@ -1,0 +1,29 @@
+{
+  "repositories": [
+    {
+      "name": "core",
+      "type": "python",
+      "description": "Extended Data Types"
+    },
+    {
+      "name": "vendor-connectors",
+      "type": "python",
+      "description": "Enterprise connector library"
+    },
+    {
+      "name": "logging",
+      "type": "python",
+      "description": "LifecycleLogging library"
+    },
+    {
+      "name": "inputs",
+      "type": "node",
+      "description": "Dynamic configuration loading"
+    },
+    {
+      "name": "extended-data-library.github.io",
+      "type": "docs",
+      "description": "Organization documentation"
+    }
+  ]
+}

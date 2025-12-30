@@ -1,0 +1,39 @@
+---
+description: PR creation and review workflow
+globs: "**/*"
+---
+
+# PR Workflow
+
+## Creating PRs
+
+1. **One feature/fix per PR** - Keep scope minimal.
+2. **Clear title**: `type(scope): description`.
+3. **Body explains** WHAT, WHY, and HOW.
+
+### Conventional Commit Types
+
+| Type | Use Case |
+|------|----------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `chore` | Maintenance tasks |
+| `refactor` | Code restructuring |
+| `test` | Adding tests |
+
+## AI Peer Review
+
+**ALWAYS request AI reviews on PRs:**
+
+```
+/jules review
+/cursor review
+```
+
+## Merging
+
+- ✅ Wait for CI to pass.
+- ✅ Address all review comments.
+- ✅ Squash if commits are messy.
+- ❌ Never use `--admin` to bypass checks.

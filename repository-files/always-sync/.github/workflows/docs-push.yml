@@ -1,0 +1,87 @@
+name: Push Documentation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-docs:
+    name: Build and Push Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for Docs
+        id: check_docs
+        run: |
+          if [ -d docs ] || [ -f pyproject.toml ] || [ -f package.json ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Environment
+        if: steps.check_docs.outputs.exists == 'true'
+        run: |
+          if [ -f pyproject.toml ]; then
+            echo "TYPE=python" >> $GITHUB_ENV
+          elif [ -f package.json ]; then
+            echo "TYPE=node" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Python
+        if: env.TYPE == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Python Docs
+        if: env.TYPE == 'python'
+        run: |
+          pip install sphinx sphinx-rtd-theme
+          if [ -f docs/conf.py ]; then
+            sphinx-build -b html docs/ public/
+          else
+            mkdir -p public
+            echo "No sphinx config found" > public/index.html
+          fi
+
+      - name: Setup Node
+        if: env.TYPE == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Node Docs
+        if: env.TYPE == 'node'
+        run: |
+          npm install -g typedoc
+          if [ -f package.json ]; then
+            typedoc --out public/ src/ || (mkdir -p public && echo "Typedoc failed" > public/index.html)
+          fi
+
+      - name: Push to Docs Repo
+        if: steps.check_docs.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          REPO_NAME=$(basename ${{ github.repository }})
+          git clone https://x-access-token:${GH_TOKEN}@github.com/extended-data-library/extended-data-library.github.io.git /tmp/docs-repo
+          mkdir -p /tmp/docs-repo/public/api/$REPO_NAME
+          cp -r public/* /tmp/docs-repo/public/api/$REPO_NAME/
+          
+          cd /tmp/docs-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "docs: sync API reference from $REPO_NAME@${{ github.sha }}" || echo "No changes to commit"
+          git push origin main

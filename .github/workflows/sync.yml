@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'repository-files/**'
+      - 'repo-config.json'
+      - 'scripts/**'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -27,62 +29,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install vendor-connectors
-        run: pip install vendor-connectors
+      - name: Install dependencies
+        run: |
+          pip install vendor-connectors
+          # Ensure gh is authenticated (should be via GH_TOKEN env)
 
-      - name: Sync files to org repos
+      - name: Run sync script
         env:
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          ORG: extended-data-library
-        run: |
-          echo "Syncing repository-files to all $ORG repos..."
-          
-          # Get list of repos
-          repos=$(gh repo list "$ORG" --limit 100 --json name,isArchived --jq '.[] | select(.isArchived == false) | .name')
-          
-          for repo in $repos; do
-            [[ "$repo" == "control-center" ]] && continue
-            [[ "$repo" == ".github" ]] && continue
-            
-            echo "📦 $ORG/$repo"
-            
-            # Sync Always-Sync files
-            find repository-files/always-sync -type f | while read -r file; do
-              rel_path="${file#repository-files/always-sync/}"
-              if [[ "$DRY_RUN" == "true" ]]; then
-                echo "  Would sync: $rel_path"
-              else
-                # Use vendor-connectors to sync
-                # We use - as content to read from stdin if possible, or just pass the cat output
-                vendor-connectors call github update_repository_file \
-                  --repository "$ORG/$repo" \
-                  --file_path "$rel_path" \
-                  --file_data "$(cat "$file")" \
-                  --msg "chore: sync $rel_path from control-center" && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
-              fi
-            done
-
-            # Sync Initial-Only files
-            find repository-files/initial-only -type f | while read -r file; do
-              rel_path="${file#repository-files/initial-only/}"
-              
-              # Check if file exists
-              exists=$(gh api "repos/$ORG/$repo/contents/$rel_path" --jq '.sha' 2>/dev/null || echo "")
-              
-              if [ -z "$exists" ]; then
-                if [[ "$DRY_RUN" == "true" ]]; then
-                  echo "  Would bootstrap: $rel_path"
-                else
-                  # Replace {{ REPO_NAME }} in content
-                  content=$(sed "s/{{ REPO_NAME }}/$repo/g" "$file")
-                  vendor-connectors call github update_repository_file \
-                    --repository "$ORG/$repo" \
-                    --file_path "$rel_path" \
-                    --file_data "$content" \
-                    --msg "chore: bootstrap $rel_path" && echo "  ✅ $rel_path" || echo "  ❌ $rel_path"
-                fi
-              fi
-            done
-          done
+        run: python scripts/sync.py
