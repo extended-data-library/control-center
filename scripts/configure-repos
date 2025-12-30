@@ -24,7 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}/.."
 CONFIG_FILE="${REPO_ROOT}/repo-config.json"
 RULESETS_DIR="${REPO_ROOT}/branch-rulesets"
-GITHUB_ORG="${GITHUB_ORG:-jbcom}"
+GITHUB_ORG="${GITHUB_ORG:-extended-data-library}"
 
 # Options
 DRY_RUN=false
