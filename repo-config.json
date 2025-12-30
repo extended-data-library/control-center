@@ -1,29 +1,33 @@
 {
-  "repositories": [
-    {
-      "name": "core",
-      "type": "python",
-      "description": "Extended Data Types"
-    },
-    {
-      "name": "vendor-connectors",
-      "type": "python",
-      "description": "Enterprise connector library"
-    },
-    {
-      "name": "logging",
-      "type": "python",
-      "description": "LifecycleLogging library"
-    },
-    {
-      "name": "inputs",
-      "type": "node",
-      "description": "Dynamic configuration loading"
-    },
-    {
-      "name": "extended-data-library.github.io",
-      "type": "docs",
-      "description": "Organization documentation"
+  "version": "1.0.0",
+  "defaults": {
+    "visibility": "public",
+    "has_issues": true,
+    "has_projects": true,
+    "has_wiki": false,
+    "has_downloads": false,
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": false,
+    "delete_branch_on_merge": true
+  },
+  "ecosystems": {
+    "core": {
+      "organization": "extended-data-library",
+      "repos": [
+        "core",
+        "vendor-connectors",
+        "logging",
+        "inputs",
+        "extended-data-library.github.io"
+      ]
     }
-  ]
+  },
+  "repository_descriptions": {
+    "core": "Extended Data Types",
+    "vendor-connectors": "Enterprise connector library",
+    "logging": "LifecycleLogging library",
+    "inputs": "Dynamic configuration loading",
+    "extended-data-library.github.io": "Organization documentation"
+  }
 }

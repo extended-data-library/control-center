@@ -1,0 +1,46 @@
+# Always-Sync Configuration
+# These files are synced on EVERY run and OVERWRITE existing files
+#
+# Managed by extended-data-library/control-center
+
+group:
+  # ============================================================================
+  # Core files - synced to ALL repositories
+  # ============================================================================
+  - files:
+      # Cursor rules (always overwrite)
+      - source: repository-files/always-sync/.cursor/
+        dest: .cursor/
+        deleteOrphaned: true
+      # GitHub workflows
+      - source: repository-files/always-sync/.github/workflows/
+        dest: .github/workflows/
+        deleteOrphaned: false
+      # GitHub agents
+      - source: repository-files/always-sync/.github/agents/
+        dest: .github/agents/
+        deleteOrphaned: true
+      # Common metadata
+      - source: repository-files/always-sync/AGENTS.md
+        dest: AGENTS.md
+      - source: repository-files/always-sync/CLAUDE.md
+        dest: CLAUDE.md
+      - source: repository-files/always-sync/.github/SECURITY.md
+        dest: .github/SECURITY.md
+      - source: repository-files/always-sync/.github/settings.yml
+        dest: .github/settings.yml
+    repos: |
+      extended-data-library/core
+      extended-data-library/vendor-connectors
+      extended-data-library/inputs
+      extended-data-library/logging
+      extended-data-library/extended-data-library.github.io
+
+  # ============================================================================
+  # Documentation specialized files
+  # ============================================================================
+  - files:
+      - source: repository-files/docs/.github/workflows/
+        dest: .github/workflows/
+    repos: |
+      extended-data-library/extended-data-library.github.io

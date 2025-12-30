@@ -1,47 +1,112 @@
-name: Sync Files
+name: Ecosystem Sync
 
 on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no changes)'
+        required: false
+        default: false
+        type: boolean
+      sync_type:
+        description: 'Which sync to run'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - always-only
+          - initial-only
+  schedule:
+    - cron: '0 3 * * *'
   push:
     branches: [main]
     paths:
       - 'repository-files/**'
       - 'repo-config.json'
-      - 'scripts/**'
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Dry run (no changes)'
-        type: boolean
-        default: false
+      - '.github/sync-always.yml'
+      - '.github/sync-initial.yml'
 
 permissions:
   contents: read
 
 jobs:
-  sync:
-    name: Sync to Org Repos
+  validate:
+    name: 🔍 Validate Configuration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate config
+        run: ./scripts/validate-config --verbose
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          pip install vendor-connectors
-          # Ensure gh is authenticated (should be via GH_TOKEN env)
-
-      - name: Run sync script
+  phase-0-create-repos:
+    name: 🆕 Phase 0 - Create Repos
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create missing repositories
         env:
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            ./scripts/create-repos --dry-run --verbose
+          else
+            ./scripts/create-repos --verbose
+          fi
+
+  phase-1-initial:
+    name: 📦 Phase 1 - Initial Sync
+    needs: phase-0-create-repos
+    runs-on: ubuntu-latest
+    if: github.event.inputs.sync_type != 'always-only'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initial file sync
+        uses: BetaHuhn/repo-file-sync-action@v1.21.1
+        with:
+          GH_PAT: ${{ secrets.CI_GITHUB_TOKEN }}
+          CONFIG_PATH: .github/sync-initial.yml
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
+          SKIP_PR: true
+          COMMIT_PREFIX: 'chore(init):'
+          GIT_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_USERNAME: github-actions[bot]
+
+  phase-2-always:
+    name: 🔄 Phase 2 - Always Sync
+    needs: [validate, phase-0-create-repos, phase-1-initial]
+    if: |
+      always() && 
+      needs.validate.result == 'success' &&
+      needs.phase-0-create-repos.result == 'success' &&
+      github.event.inputs.sync_type != 'initial-only' &&
+      (needs.phase-1-initial.result == 'success' || needs.phase-1-initial.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Always file sync
+        uses: BetaHuhn/repo-file-sync-action@v1.21.1
+        with:
+          GH_PAT: ${{ secrets.CI_GITHUB_TOKEN }}
+          CONFIG_PATH: .github/sync-always.yml
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
+          SKIP_PR: true
+          COMMIT_PREFIX: 'chore(sync):'
+          GIT_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_USERNAME: github-actions[bot]
+
+  sync-secrets:
+    name: 🔐 Sync Secrets
+    needs: phase-2-always
+    runs-on: ubuntu-latest
+    if: always() && github.event.inputs.dry_run != 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync secrets
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           GOOGLE_JULES_API_KEY: ${{ secrets.GOOGLE_JULES_API_KEY }}
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: |
-          python scripts/sync.py
-          python scripts/sync-secrets.py
-          python scripts/health-check.py
+        run: ./scripts/sync-secrets
