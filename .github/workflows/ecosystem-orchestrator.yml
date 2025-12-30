@@ -333,23 +333,32 @@ jobs:
             Create a PR with your changes.
 
   # ====================================================================
-  #              JOB: DELEGATE CLAUDE COMMANDS (PULL REQUESTS)
+  #                    JOB: AUTO-MERGE (EXPERIMENTAL)
   # ====================================================================
-  delegate_claude_pr:
-    name: Delegate (Claude PR)
+  auto_merge:
+    name: Auto-merge
+    needs: [review_ollama, review_claude]
     if: |
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude'))
+      always() &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') &&
+      (needs.review_ollama.outputs.suggestion_count == '0' || github.event.inputs.action == 'merge')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          repository: ${{ env.TARGET_REPO }}
-          fetch-depth: 0
-          token: ${{ secrets.CI_GITHUB_TOKEN }}
-
-      - name: Run Claude on PR
-        uses: anthropics/claude-code-action@154d0de144ff82240e1c3deedff56280381fd122 # main
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.CI_GITHUB_TOKEN }}
-          allowed_tools: "Edit,Write,Read,Glob,Grep,LS,Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr view),Bash(gh pr list),Bash(node:*),Bash(npm:*)"
+      - name: Attempt Merge
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          PR="${{ env.PR_NUMBER }}"
+          REPO="${{ env.TARGET_REPO }}"
+          
+          echo "Checking if PR #$PR in $REPO can be merged..."
+          
+          # Check status checks
+          STATUS=$(gh pr view "$PR" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup[] | select(.status == "COMPLETED") | .conclusion' | sort | uniq)
+          
+          if [[ "$STATUS" == "SUCCESS" ]]; then
+            echo "All checks passed. Merging PR #$PR..."
+            gh pr merge "$PR" --repo "$REPO" --squash --admin || echo "Manual merge required or admin bypass failed"
+          else
+            echo "Checks not passed: $STATUS"
+          fi
