@@ -78,7 +78,7 @@ runs:
           TASK=$(echo "$COMMENT_BODY" | sed 's|/jules[[:space:]]*||' | head -c 1000)
           [ -z "$TASK" ] && TASK="Fix issue #$ISSUE_NUMBER"
 
-          RESPONSE=$(curl -sf -X POST "https://jules.googleapis.com/v1alpha/sessions" \
+          RESPONSE=$(curl -s -X POST "https://jules.googleapis.com/v1alpha/sessions" \
             -H "X-Goog-Api-Key: $GOOGLE_JULES_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -92,7 +92,7 @@ runs:
                   githubRepoContext: { startingBranch: $branch }
                 },
                 automationMode: "AUTO_CREATE_PR"
-              }')" 2>/dev/null) || RESPONSE=""
+              }')")
 
           SESSION_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
           SESSION_URL="https://jules.google.com/session/$SESSION_ID"
@@ -104,8 +104,8 @@ runs:
 
           Jules will analyze the issue and create a PR."
           else
-            echo "Failed to create Jules session."
-            gh issue comment "$ISSUE_NUMBER" --body "❌ Failed to create Jules session. Please check workflow logs."
+            echo "Failed to create Jules session: $RESPONSE"
+            gh issue comment "$ISSUE_NUMBER" --body "❌ Failed to create Jules session. Please check logs."
             exit 1
           fi
           exit 0
