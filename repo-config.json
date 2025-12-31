@@ -97,6 +97,16 @@
         "logging"
       ]
     },
+    "go": {
+      "organization": "extended-data-library",
+      "files": {
+        "always": ["always-sync"],
+        "initial": ["initial-only"]
+      },
+      "repos": [
+        "secretssync"
+      ]
+    },
     "nodejs": {
       "organization": "extended-data-library",
       "files": {
@@ -130,6 +140,7 @@
     "vendor-connectors": "Enterprise connector library",
     "logging": "LifecycleLogging library",
     "inputs": "Dynamic configuration loading",
-    "extended-data-library.github.io": "Organization documentation"
+    "extended-data-library.github.io": "Organization documentation",
+    "secretssync": "Enterprise-grade secret synchronization with Python bindings"
   }
 }
