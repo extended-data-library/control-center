@@ -1,0 +1,12 @@
+{
+  "org": "extended-data-library",
+  "domain": "extendeddata.dev",
+  "parentOrg": "jbcom",
+  "focus": [
+  "Data utilities",
+  "Enterprise integrations",
+  "Type systems"
+],
+  "syncedFrom": "jbcom/control-center",
+  "syncedAt": "2025-12-31T01:06:45Z"
+}
