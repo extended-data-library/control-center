@@ -53,6 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
         run: |
+          # shellcheck disable=SC2016
           # ══════════════════════════════════════════════════════════
           # RESOLVE PR CONTEXT
           # ══════════════════════════════════════════════════════════
