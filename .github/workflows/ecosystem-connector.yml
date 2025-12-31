@@ -61,8 +61,7 @@ jobs:
     name: Delegate Command
     if: |
       github.event_name == 'issue_comment' &&
-      (contains(github.event.comment.body, '/jules') || 
-       contains(github.event.comment.body, '/cursor'))
+      (startsWith(github.event.comment.body, '/jules ') || startsWith(github.event.comment.body, '/cursor '))
     uses: extended-data-library/control-center/.github/workflows/ecosystem-orchestrator.yml@main
     with:
       action: delegate
