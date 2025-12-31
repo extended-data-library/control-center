@@ -71,7 +71,6 @@ on:
         required: false
       OLLAMA_API_KEY:
         required: false
-        required: false
       CURSOR_API_KEY:
         required: false
 
