@@ -122,7 +122,7 @@ jobs:
           done
           
           # Search for existing tracking issue
-          TRACKING_ISSUE=$(gh issue list --repo "${{ github.repository }}" --label "synthesis" --search "$ISSUE_KEY in:title" --json number --jq '.[0].number // empty' 2>/dev/null)
+          TRACKING_ISSUE=$(gh issue list --repo "${{ github.repository }}" --label "synthesis" --search "$ISSUE_KEY in:title" --json number --jq ".[0].number // empty" 2>/dev/null)
           
           if [ -z "$TRACKING_ISSUE" ]; then
             echo "  Creating new tracking issue..."
@@ -146,7 +146,7 @@ jobs:
           ---
           <sub>🤖 Managed by Ecosystem Triage</sub>" \
               --label "synthesis" \
-              2>/dev/null | grep -oE '[0-9]+$')
+              2>/dev/null | grep -oE "[0-9]+$")
             
             # Link tracking issue to PR
             gh pr comment $PR_NUM --repo "${{ github.repository }}" --body "📦 **Tracking:** #$TRACKING_ISSUE" 2>/dev/null || true
@@ -180,9 +180,9 @@ jobs:
           RESULT=$(gh api graphql -f query="$QUERY" -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUM" 2>/dev/null || echo "{}")
           
           # Count feedback
-          REVIEW_COUNT=$(echo "$RESULT" | jq --arg a "$AI_AGENTS" '[.data.repository.pullRequest.reviews.nodes[]? | select(.author.login | test($a; "i"))] | length' 2>/dev/null || echo "0")
-          THREAD_COUNT=$(echo "$RESULT" | jq --arg a "$AI_AGENTS" '[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false) | select(.comments.nodes[0].author.login | test($a; "i"))] | length' 2>/dev/null || echo "0")
-          CRITICAL_COUNT=$(echo "$RESULT" | jq --arg a "$AI_AGENTS" '[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false) | select(.comments.nodes[0].author.login | test($a; "i")) | select(.comments.nodes[0].body | test("security|vulnerability|critical|breaking"; "i"))] | length' 2>/dev/null || echo "0")
+          REVIEW_COUNT=$(echo "$RESULT" | jq --arg a "$AI_AGENTS" "[.data.repository.pullRequest.reviews.nodes[]? | select(.author.login | test(\\"$a\\"; \\"i\\"))] | length" 2>/dev/null || echo "0")
+          THREAD_COUNT=$(echo "$RESULT" | jq --arg a "$AI_AGENTS" "[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false) | select(.comments.nodes[0].author.login | test(\\"$a\\"; \\"i\\"))] | length" 2>/dev/null || echo "0")
+          CRITICAL_COUNT=$(echo "$RESULT" | jq --arg a "$AI_AGENTS" "[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false) | select(.comments.nodes[0].author.login | test(\\"$a\\"; \\"i\\")) | select(.comments.nodes[0].body | test(\\"security|vulnerability|critical|breaking\\"; \\"i\\"))] | length" 2>/dev/null || echo "0")
           
           echo "  Reviews: $REVIEW_COUNT | Threads: $THREAD_COUNT | Critical: $CRITICAL_COUNT"
           
@@ -192,11 +192,11 @@ jobs:
           echo ""
           echo "🧹 Step 3: Resolving outdated..."
           
-          OUTDATED_IDS=$(echo "$RESULT" | jq -r --arg a "$AI_AGENTS" '
+          OUTDATED_IDS=$(echo "$RESULT" | jq -r --arg a "$AI_AGENTS" "
             .data.repository.pullRequest.reviewThreads.nodes[]? |
             select(.isOutdated == true and .isResolved == false) |
-            select(.comments.nodes[0].author.login | test($a; "i")) | .id
-          ' 2>/dev/null || echo "")
+            select(.comments.nodes[0].author.login | test(\\"$a\\"; \\"i\\")) | .id
+          " 2>/dev/null || echo "")
           
           RESOLVED=0
           for TID in $OUTDATED_IDS; do
@@ -227,13 +227,13 @@ jobs:
           # ══════════════════════════════════════════════════════════
           FEEDBACK=""
           if [ "$THREAD_COUNT" -gt 0 ]; then
-            FEEDBACK=$(echo "$RESULT" | jq -r --arg a "$AI_AGENTS" '
+            FEEDBACK=$(echo "$RESULT" | jq -r --arg a "$AI_AGENTS" "
               [.data.repository.pullRequest.reviewThreads.nodes[]? |
                select(.isResolved == false) |
-               select(.comments.nodes[0].author.login | test($a; "i"))] |
+               select(.comments.nodes[0].author.login | test(\\"$a\\"; \\"i\\"))] |
               .[:10][] |
-              "- [ ] **\(.comments.nodes[0].author.login)** on `\(.path):\(.line // "?")`"
-            ' 2>/dev/null || echo "")
+              \\"- [ ] **\\(.comments.nodes[0].author.login)** on \`\\(.path):\\(.line // \\"?\\")\`\\"
+            " 2>/dev/null || echo "")
           fi
           [ -z "$FEEDBACK" ] && FEEDBACK="_No active feedback._"
           

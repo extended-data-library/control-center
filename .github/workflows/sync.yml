@@ -86,19 +86,19 @@ jobs:
               echo "    - Rust detected"
               cp -r $GITHUB_WORKSPACE/repository-files/rust/.cursor/rules/* .cursor/rules/ 2>/dev/null || true
             fi
-            if ls *.tf >/dev/null 2>&1; then
+            if ls -- *.tf >/dev/null 2>&1; then
               echo "    - Terraform detected"
-              cp -r $GITHUB_WORKSPACE/repository-files/terraform/.cursor/rules/* .cursor/rules/ 2>/dev/null || true
+              cp -r "$GITHUB_WORKSPACE/repository-files/terraform/.cursor/rules/"* .cursor/rules/ 2>/dev/null || true
             fi
             
             # LAYER 3: Org-specific overrides (wins)
             echo "  Layer 3: Org overrides..."
             if [ -d "$GITHUB_WORKSPACE/repository-files/org-overrides" ]; then
-              cp -r $GITHUB_WORKSPACE/repository-files/org-overrides/.github/workflows/* .github/workflows/ 2>/dev/null && echo "    - Workflows overridden" || true
-              cp -r $GITHUB_WORKSPACE/repository-files/org-overrides/.cursor/rules/* .cursor/rules/ 2>/dev/null && echo "    - Cursor rules overridden" || true
-              for item in $GITHUB_WORKSPACE/repository-files/org-overrides/*; do
+              if cp -r "$GITHUB_WORKSPACE/repository-files/org-overrides/.github/workflows/"* .github/workflows/ 2>/dev/null; then echo "    - Workflows overridden"; fi
+              if cp -r "$GITHUB_WORKSPACE/repository-files/org-overrides/.cursor/rules/"* .cursor/rules/ 2>/dev/null; then echo "    - Cursor rules overridden"; fi
+              for item in "$GITHUB_WORKSPACE/repository-files/org-overrides/"*; do
                 if [ -f "$item" ]; then
-                  cp "$item" . 2>/dev/null && echo "    - $(basename $item) overridden" || true
+                  if cp "$item" .; then echo "    - $(basename "$item") overridden"; fi
                 fi
               done
             else
