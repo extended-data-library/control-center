@@ -225,6 +225,22 @@ jobs:
           ISSUE_NUM: ${{ needs.route.outputs.issue_num }}
           IS_PR: ${{ needs.route.outputs.is_pr }}
         run: |
+          # Validate task is not empty
+          if [ -z "$TASK" ]; then
+            echo "❌ Task is empty. Aborting."
+            BODY="❌ **Jules Task Required**
+
+            Please provide a task for Jules. Example:
+            \`@cascade refactor this to be more performant\`"
+
+            if [ "$IS_PR" = "true" ]; then
+              gh pr comment $ISSUE_NUM --repo "${{ github.repository }}" --body "$BODY"
+            else
+              gh issue comment $ISSUE_NUM --repo "${{ github.repository }}" --body "$BODY"
+            fi
+            exit 1
+          fi
+
           # All values passed via env to prevent code injection
           # Parse owner/repo
           OWNER="${REPO%%/*}"
