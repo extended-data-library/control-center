@@ -306,7 +306,7 @@ jobs:
       - name: Query Ollama
         env:
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-          OLLAMA_API_URL: ${{ vars.OLLAMA_API_URL || 'https://api.ollama.com' }}
+          OLLAMA_API_URL: ${{ vars.OLLAMA_HOST || 'https://ollama.com' }}
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
           TASK: ${{ needs.route.outputs.task }}
           ISSUE_NUM: ${{ needs.route.outputs.issue_num }}

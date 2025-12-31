@@ -134,7 +134,7 @@ env:
   MODEL_TIER: ${{ github.event.inputs.model_tier || inputs.model_tier || 'ollama' }}
 
   # Standard Ollama config
-  OLLAMA_HOST: ${{ secrets.OLLAMA_API_URL || vars.OLLAMA_API_URL || vars.OLLAMA_HOST || 'https://ollama.com' }}
+  OLLAMA_HOST: ${{ vars.OLLAMA_HOST || 'https://ollama.com' }}
   OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'glm-4.6:cloud' }}
 
 permissions:
