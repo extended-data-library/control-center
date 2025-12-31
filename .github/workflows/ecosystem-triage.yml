@@ -79,16 +79,16 @@ jobs:
             TRACKING=$(gh issue list --repo "${{ github.repository }}" --label "synthesis" --search "synthesis-pr-$PR_NUM in:title" --json number --jq '.[0].number // empty')
             if [ -n "$TRACKING" ]; then
               if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-                gh issue close $TRACKING --repo "${{ github.repository }}" --comment "✅ PR #$PR_NUM merged successfully." 2>/dev/null || true
+                gh issue close "$TRACKING" --repo "${{ github.repository }}" --comment "✅ PR #$PR_NUM merged successfully." 2>/dev/null || true
               else
-                gh issue close $TRACKING --repo "${{ github.repository }}" --comment "❌ PR #$PR_NUM closed without merge." 2>/dev/null || true
+                gh issue close "$TRACKING" --repo "${{ github.repository }}" --comment "❌ PR #$PR_NUM closed without merge." 2>/dev/null || true
               fi
             fi
             exit 0
           fi
           
           # Get PR details
-          PR_DATA=$(gh pr view $PR_NUM --repo "${{ github.repository }}" --json title,url,author,headRefName,isDraft 2>/dev/null || echo "{}")
+          PR_DATA=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json title,url,author,headRefName,isDraft 2>/dev/null || echo "{}")
           PR_TITLE=$(echo "$PR_DATA" | jq -r '.title // "Unknown"')
           PR_URL=$(echo "$PR_DATA" | jq -r '.url // ""')
           PR_AUTHOR=$(echo "$PR_DATA" | jq -r '.author.login // "unknown"')
@@ -149,7 +149,7 @@ jobs:
               2>/dev/null | grep -oE '[0-9]+$')
             
             # Link tracking issue to PR
-            gh pr comment $PR_NUM --repo "${{ github.repository }}" --body "📦 **Tracking:** #$TRACKING_ISSUE" 2>/dev/null || true
+            gh pr comment "$PR_NUM" --repo "${{ github.repository }}" --body "📦 **Tracking:** #$TRACKING_ISSUE" 2>/dev/null || true
             echo "  ✅ Created #$TRACKING_ISSUE"
           else
             echo "  ✅ Found #$TRACKING_ISSUE"
@@ -199,7 +199,7 @@ jobs:
           ' 2>/dev/null || echo "")
           
           RESOLVED=0
-          for TID in $OUTDATED_IDS; do
+          for TID in "$OUTDATED_IDS"; do
             [ -z "$TID" ] && continue
             gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="$TID" 2>/dev/null && RESOLVED=$((RESOLVED + 1))
           done
@@ -273,11 +273,11 @@ jobs:
 
           <sub>🤖 Ecosystem Triage</sub>"
           
-          gh issue edit $TRACKING_ISSUE --repo "${{ github.repository }}" --body "$BODY" 2>/dev/null || true
+          gh issue edit "$TRACKING_ISSUE" --repo "${{ github.repository }}" --body "$BODY" 2>/dev/null || true
           
           # Update labels
-          gh issue edit $TRACKING_ISSUE --repo "${{ github.repository }}" --remove-label "queue-blocked,queue-review,queue-ready" 2>/dev/null || true
-          gh issue edit $TRACKING_ISSUE --repo "${{ github.repository }}" --add-label "$VERDICT_LABEL" 2>/dev/null || true
+          gh issue edit "$TRACKING_ISSUE" --repo "${{ github.repository }}" --remove-label "queue-blocked,queue-review,queue-ready" 2>/dev/null || true
+          gh issue edit "$TRACKING_ISSUE" --repo "${{ github.repository }}" --add-label "$VERDICT_LABEL" 2>/dev/null || true
           
           echo ""
           echo "✅ Tracking issue #$TRACKING_ISSUE updated: $VERDICT"

@@ -37,6 +37,8 @@ on:
         required: false
       OLLAMA_API_KEY:
         required: false
+      OLLAMA_API_URL:
+        required: false
 
   # Manual/On-call trigger
   workflow_dispatch:
@@ -55,6 +57,7 @@ on:
         type: string
 
 env:
+  OLLAMA_API_URL: ${{ secrets.OLLAMA_API_URL }}
   OLLAMA_HOST: ${{ secrets.OLLAMA_API_URL || vars.OLLAMA_API_URL || vars.OLLAMA_HOST || 'https://ollama.com' }}
   OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'glm-4.6:cloud' }}
   TARGET_REPO: ${{ inputs.repository || github.repository }}
