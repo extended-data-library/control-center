@@ -59,7 +59,18 @@ jobs:
           echo "repo=${{ github.repository }}" >> $GITHUB_OUTPUT
           
           # Extract task (everything after @cascade)
-          TASK=$(echo "$COMMENT" | sed 's/.*@cascade//' | xargs)
+          TASK=$(echo "$COMMENT" | sed 's/.*@cascade[[:space:]]*//' | xargs)
+
+          if [[ -z "$TASK" ]]; then
+            BODY="🤖 Received '@cascade' command, but no prompt was provided. Please provide a prompt after the command."
+            if [ "$IS_PR" = "true" ]; then
+              gh pr comment "$ISSUE_NUM" --repo "${{ github.repository }}" --body "$BODY"
+            else
+              gh issue comment "$ISSUE_NUM" --repo "${{ github.repository }}" --body "$BODY"
+            fi
+            exit 0
+          fi
+
           echo "task=$TASK" >> $GITHUB_OUTPUT
           
           # Get branch if PR
