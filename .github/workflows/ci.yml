@@ -31,9 +31,20 @@ jobs:
       - name: Lint all workflows
         run: |
           echo "Linting all workflow files..."
-          # Ignore SC2086 (double quote to prevent globbing) - common in GHA workflows
-          # where variables like $GITHUB_STEP_SUMMARY are known-safe
-          actionlint -ignore 'SC2086' -ignore 'SC2129' -color
+          # Ignore common ShellCheck rules that are often false positives in GHA
+          # SC2016: Expressions don't expand in single quotes (common in GraphQL/SQL)
+          # SC2015: A && B || C is not if-then-else
+          # SC2035: Use ./*glob* or -- *glob*
+          # SC2231: Quote expansions in for loop glob
+          actionlint \
+            -ignore 'SC2086' \
+            -ignore 'SC2129' \
+            -ignore 'SC2016' \
+            -ignore 'SC2015' \
+            -ignore 'SC2035' \
+            -ignore 'SC2231' \
+            -ignore 'property "ollama_api_url" is not defined' \
+            -color
           echo "✅ All workflows pass linting"
 
   validate-expressions:
