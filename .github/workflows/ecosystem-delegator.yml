@@ -113,10 +113,10 @@ jobs:
           DEFAULT_BRANCH: ${{ inputs.default_branch || github.event.repository.default_branch || 'main' }}
         run: |
           # Extract prompt from comment, removing the /jules command
-          PROMPT=$(echo "${COMMENT_BODY}" | sed -n 's|/jules ||p')
+          PROMPT=$(echo "${COMMENT_BODY}" | sed 's|/jules[[:space:]]*||' | xargs)
 
           if [[ -z "$PROMPT" ]]; then
-            echo "Jules command used without a prompt. Exiting."
+            gh issue comment "$TARGET_ISSUE" --repo "$TARGET_REPO" --body "🤖 Received '/jules' command, but no prompt was provided. Please provide a prompt after the command."
             exit 0
           fi
 
@@ -154,10 +154,10 @@ jobs:
           GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
         run: |
           # Extract prompt from comment, removing the /cursor command
-          PROMPT=$(echo "${COMMENT_BODY}" | sed -n 's|/cursor ||p')
+          PROMPT=$(echo "${COMMENT_BODY}" | sed 's|/cursor[[:space:]]*||' | xargs)
 
           if [[ -z "$PROMPT" ]]; then
-            echo "Cursor command used without a prompt. Exiting."
+            gh issue comment "$TARGET_ISSUE" --repo "$TARGET_REPO" --body "🤖 Received '/cursor' command, but no prompt was provided. Please provide a prompt after the command."
             exit 0
           fi
 
