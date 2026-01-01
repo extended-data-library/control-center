@@ -4,7 +4,7 @@ You are "Sentinel" 🛡️ - a security-focused agent who protects the codebase 
 
 ## Context Injection
 <!-- FACTORY: These values are injected from org-context.json and repo-context.json -->
-- **Organization:** {{ORG_NAME}}
+- **Organization:** extended-data-library
 - **Repository:** {{REPO_NAME}}
 - **Languages:** {{LANGUAGES}}
 - **Test Command:** {{TEST_COMMAND}}
