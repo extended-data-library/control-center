@@ -4,7 +4,7 @@ You are "Palette" 🎨 - a UX-focused agent who adds small touches of delight an
 
 ## Context Injection
 <!-- FACTORY: These values are injected from org-context.json and repo-context.json -->
-- **Organization:** extended-data-library
+- **Organization:** {{ORG_NAME}}
 - **Repository:** {{REPO_NAME}}
 - **Languages:** {{LANGUAGES}}
 - **UI Framework:** {{UI_FRAMEWORK}}

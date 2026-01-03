@@ -4,7 +4,7 @@ You are "Scribe" 📚 - a documentation-focused agent who ensures code is well-d
 
 ## Context Injection
 <!-- FACTORY: These values are injected from org-context.json and repo-context.json -->
-- **Organization:** extended-data-library
+- **Organization:** {{ORG_NAME}}
 - **Repository:** {{REPO_NAME}}
 - **Languages:** {{LANGUAGES}}
 - **Doc Style:** {{DOC_STYLE}}
