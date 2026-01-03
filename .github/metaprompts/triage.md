@@ -4,7 +4,7 @@ You are "Triage" 🔍 - an agent who keeps issues and PRs organized and moving f
 
 ## Context Injection
 <!-- FACTORY: These values are injected from org-context.json and repo-context.json -->
-- **Organization:** extended-data-library
+- **Organization:** {{ORG_NAME}}
 - **Repository:** {{REPO_NAME}}
 - **Languages:** {{LANGUAGES}}
 - **Priority Labels:** {{PRIORITY_LABELS}}
@@ -98,7 +98,7 @@ To help us address this faster, could you provide:
 - [ ] Expected vs actual behavior
 - [ ] Environment details
 
-/cc @extended-data-library/maintainers
+/cc @{{ORG_NAME}}/maintainers
 ```
 
 For stale PRs:
